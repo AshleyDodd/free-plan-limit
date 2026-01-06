@@ -1,19 +1,20 @@
 <?php
 
-namespace Plugins\FreePlanServerLimit\EventListener;
+namespace Plugins\FreePlanLimit\EventListener;
 
 use App\Core\Entity\User;
 use App\Core\Entity\Server;
 use App\Core\Event\Server\ServerAboutToBeCreatedEvent;
-use App\Core\Service\Plugin\PluginSettingService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 class FreePlanServerLimitListener implements EventSubscriberInterface
 {
+    private array $freeProductIds = [1];
+    private int $maxFreeServers = 1;
+
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
-        private readonly PluginSettingService $pluginSettingService
+        private readonly EntityManagerInterface $entityManager
     ) {}
 
     public static function getSubscribedEvents(): array
@@ -25,16 +26,7 @@ class FreePlanServerLimitListener implements EventSubscriberInterface
 
     public function onServerAboutToBeCreated(ServerAboutToBeCreatedEvent $event): void
     {
-        // Get settings from database
-        $freeProductIdsString = (string) $this->pluginSettingService->get('free-plan-server-limit', 'free_product_ids', '1');
-        $maxFreeServers = (int) $this->pluginSettingService->get('free-plan-server-limit', 'max_free_servers', 1);
-        $errorMessage = (string) $this->pluginSettingService->get('free-plan-server-limit', 'error_message', 'You have reached the maximum number of servers allowed on the free plan.');
-
-        // Parse comma-separated product IDs into array of integers
-        $freeProductIds = array_map('intval', array_filter(explode(',', $freeProductIdsString)));
-
-        // If no product IDs configured or product not in free list, allow creation
-        if (empty($freeProductIds) || !in_array($event->getProductId(), $freeProductIds, true)) {
+        if (!in_array($event->getProductId(), $this->freeProductIds, true)) {
             return;
         }
 
@@ -53,12 +45,15 @@ class FreePlanServerLimitListener implements EventSubscriberInterface
             ->andWhere('s.deletedAt IS NULL')
             ->andWhere($qb->expr()->in('p.id', ':freeIds'))
             ->setParameter('user', $event->getUserId())
-            ->setParameter('freeIds', $freeProductIds)
+            ->setParameter('freeIds', $this->freeProductIds)
             ->getQuery()
             ->getSingleScalarResult();
 
-        if ($serverCount >= $maxFreeServers) {
-            throw new \Exception($errorMessage);
+
+
+        if ($serverCount >= $this->maxFreeServers) {
+            throw new \Exception('You have reached the maximum number of servers allowed on the free plan.');
         }
     }
+
 }

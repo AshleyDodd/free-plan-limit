@@ -1,15 +1,9 @@
 services:
-    _defaults:
-        autowire: true
-        autoconfigure: true
+  Plugins\FreePlanLimit\Bootstrap:
+    public: true
 
-    # Bootstrap
-    Plugins\FreePlanServerLimit\Bootstrap:
-        public: true
-
-    # Event Subscribers are auto-discovered by PluginEventSubscriberRegistry
-    # DO NOT add kernel.event_subscriber tags - they would be loaded even when plugin is disabled!
-    # Registry automatically finds all *Subscriber.php files in src/EventSubscriber/
-    # Register as public service so registry can get them from container
-    Plugins\FreePlanServerLimit\EventSubscriber\FreePlanServerLimitSubscriber:
-        public: true
+  Plugins\FreePlanLimit\EventListener\FreePlanServerLimitListener:
+    arguments:
+      - '@doctrine.orm.entity_manager'
+    tags:
+      - { name: kernel.event_subscriber }
